@@ -3,7 +3,7 @@
   tasks:
   - name: Install python-Scapy and dependencies
     apt: name={{ item }} update_cache=yes
-    loop: ['python3-scapy', 'net-tools']
+    loop: ['python3-scapy', 'net-tools', 'sshpass']
     become: yes
 
   - name: Adjust arp table

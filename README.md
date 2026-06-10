@@ -10,22 +10,204 @@ This is my first lab to use InBand Network Telemetry with P4. To use this lab, y
 Use InBand Network Telemetry to collect metadata from BMv2 switches. 
 
 # Topology
-![INT-P4 Topology](https://user-images.githubusercontent.com/10882149/107682204-cadb9780-6c7e-11eb-9492-eafb4ed509d7.png)
+```mermaid
+graph LR
+    H1[host-1<br>192.168.50.11] --- S1((sw1))
+    
+    S1 -- Primary Path --> S2((sw2))
+    S1 -- Secondary Path --> S3((sw3))
+    
+    S2 --> S4((sw4))
+    S3 --> S4
+    
+    S4 --- H2[host-2<br>192.168.50.12]
+    
+    style H1 fill:#f9f,stroke:#333,stroke-width:2px
+    style H2 fill:#f9f,stroke:#333,stroke-width:2px
+    style S1 fill:#bbf,stroke:#333,stroke-width:2px
+    style S2 fill:#bbf,stroke:#333,stroke-width:2px
+    style S3 fill:#bbf,stroke:#333,stroke-width:2px
+    style S4 fill:#bbf,stroke:#333,stroke-width:2px
+```
 
-# Commands
-- ``` vagrant up ``` will create four virtual machines and start the topology.
-- ``` vagrant ssh host-1 ``` will make a ssh connection in a virtual machine host-1. This virtual machine has IP address 192.168.50.11
-- ``` vagrant ssh host-2 ``` will make a ssh connection in a virtual machine host-2. This virtual machine has IP address 192.168.50.12
+# Instructions
 
-# Host-2
-In host-2 you need run the python script (receive.py) for start server application.
-- ``` cd /vagrant/code ```
-- ``` sudo ./receive.py ```
+## 1. Start the Environment
+To create and provision all Virtual Machines, run:
+```bash
+vagrant up
+```
 
-# Host-1
-In host-1 you need run the python script (send.py) for start client application.
-- ``` cd /vagrant/code ```
-- ``` sudo ./send.py 192.168.50.12 ```
+## 2. Check Environment Status
+To verify the state of the VMs, run:
+```bash
+vagrant status
+```
+
+## 3. Test the Environment (INT & Closed-Loop Control)
+
+**Terminal 1 (Preparing the Server/Collector):**
+Access `host-2` and execute the script to receive data:
+```bash
+vagrant ssh host-2
+cd /vagrant/code
+sudo ./receive.py
+```
+*Note: The terminal will now be listening on the network, waiting for packets to arrive.*
+
+**Terminal 2 (Starting the Client):**
+Access `host-1` and execute the script to send packets towards `host-2` (IP 192.168.50.12):
+```bash
+vagrant ssh host-1
+cd /vagrant/code
+sudo ./send.py 192.168.50.12
+```
+
+In **Terminal 1** (`host-2`), you will start seeing the **InBand Network Telemetry (INT)** metadata being collected from the P4 switches, such as `switchID_t`, `ingress_port`, `egress_port`, `timestamps`, etc.
+
+### Closed-Loop Control (INT-Aware SLA Failover)
+During the test, if the internal switch latency exceeds the threshold configured in `receive.py` (inside the `handle_pkt` function), the traffic is automatically and dynamically redirected. 
+The system alters the forwarding from the **Primary Path** (`host-1 ➔ sw1 ➔ sw2 ➔ sw4 ➔ host-2`) to the **Secondary Path (Failover)** (`host-1 ➔ sw1 ➔ sw3 ➔ sw4 ➔ host-2`).
+
+#### Example Logs:
+
+**1. Threshold Detection (Primary Path via SW2):**
+The first packets pass through switch 2 (`switchID_t= 2`). Once the latency threshold of 400 microseconds is exceeded, the detection is triggered:
+```text
+vagrant@host-2:/vagrant/code$ sudo ./receive.py 
+###[ Ethernet ]### 
+  dst       = 08:00:27:1d:e0:27
+  src       = 08:00:27:1d:e0:27
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 5
+     tos       = 0x0
+     len       = 118
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 61
+     proto     = 253
+     chksum    = 0x9722
+     src       = 192.168.50.11
+     dst       = 192.168.50.12
+     \options   \
+###[ nodeCount ]### 
+        count     = 3
+        \INT       \
+         |###[ InBandNetworkTelemetry ]### 
+         |  switchID_t= 4
+         |  ingress_port= 0
+         |  egress_port= 2
+         |  egress_spec= 0
+         |  ingress_global_timestamp= 102714893
+         |  egress_global_timestamp= 102715105
+         |  enq_timestamp= 102715051
+         |  enq_qdepth= 0
+         |  deq_timedelta= 61
+         |  deq_qdepth= 0
+         |###[ InBandNetworkTelemetry ]### 
+         |  switchID_t= 2
+         |  ingress_port= 0
+         |  egress_port= 1
+         |  egress_spec= 0
+         |  ingress_global_timestamp= 151741471
+         |  egress_global_timestamp= 151741592
+         |  enq_timestamp= 151741568
+         |  enq_qdepth= 0
+         |  deq_timedelta= 26
+         |  deq_qdepth= 0
+         |###[ InBandNetworkTelemetry ]### 
+         |  switchID_t= 1
+         |  ingress_port= 0
+         |  egress_port= 1
+         |  egress_spec= 0
+         |  ingress_global_timestamp= 174771793
+         |  egress_global_timestamp= 174771915
+         |  enq_timestamp= 174771887
+         |  enq_qdepth= 0
+         |  deq_timedelta= 31
+         |  deq_qdepth= 0
+###[ Padding ]### 
+           load      = '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+
+--- Current Delay: 0.455 ms ---
+Total delay 455 us exceeded 400 us! Changing path to secondary (SW3)...
+```
+
+**2. Successful Failover (Secondary Path via SW3):**
+The subsequent log shows the traffic passing through switch 3 (`switchID_t= 3`), confirming the backup route is active and the forwarding switchover was completed successfully:
+```text
+###[ Ethernet ]### 
+  dst       = 08:00:27:1d:e0:27
+  src       = 08:00:27:1d:e0:27
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 5
+     tos       = 0x0
+     len       = 118
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 61
+     proto     = 253
+     chksum    = 0x9722
+     src       = 192.168.50.11
+     dst       = 192.168.50.12
+     \options   \
+###[ nodeCount ]### 
+        count     = 3
+        \INT       \
+         |###[ InBandNetworkTelemetry ]### 
+         |  switchID_t= 4
+         |  ingress_port= 1
+         |  egress_port= 2
+         |  egress_spec= 0
+         |  ingress_global_timestamp= 103582970
+         |  egress_global_timestamp= 103583187
+         |  enq_timestamp= 103583117
+         |  enq_qdepth= 0
+         |  deq_timedelta= 77
+         |  deq_qdepth= 0
+         |###[ InBandNetworkTelemetry ]### 
+         |  switchID_t= 3
+         |  ingress_port= 0
+         |  egress_port= 1
+         |  egress_spec= 0
+         |  ingress_global_timestamp= 131327253
+         |  egress_global_timestamp= 131327630
+         |  enq_timestamp= 131327494
+         |  enq_qdepth= 0
+         |  deq_timedelta= 144
+         |  deq_qdepth= 0
+         |###[ InBandNetworkTelemetry ]### 
+         |  switchID_t= 1
+         |  ingress_port= 0
+         |  egress_port= 2
+         |  egress_spec= 0
+         |  ingress_global_timestamp= 175639200
+         |  egress_global_timestamp= 175639424
+         |  enq_timestamp= 175639355
+         |  enq_qdepth= 0
+         |  deq_timedelta= 75
+         |  deq_qdepth= 0
+###[ Padding ]### 
+           load      = '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+```
+
+## 4. Stop the Environment
+To power off the virtual machines gracefully:
+```bash
+vagrant halt
+```
+
+## 5. Destroy the Environment
+To delete the virtual machines completely:
+```bash
+vagrant destroy
+```
 
 # InBand Network Telemetry metadata
 In host-2 terminal you can see metadata that were collected from switches. The metadata are:

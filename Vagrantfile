@@ -24,11 +24,14 @@ Vagrant.configure("2") do |config|
         #Internal network between bmv2 switches
         switch.vm.network "private_network", auto_config: false,
             virtualbox__intnet: "S1-S2"
+        switch.vm.network "private_network", auto_config: false,
+            virtualbox__intnet: "S1-S3"
 
 
         switch.vm.provider "virtualbox" do |v|
             v.customize ["modifyvm", :id, "--nicpromisc3", "allow-all"]
             v.customize ["modifyvm", :id, "--nicpromisc4", "allow-all"]
+            v.customize ["modifyvm", :id, "--nicpromisc5", "allow-all"]
         end
 
         switch.vm.provision "ansible" do |ansible| 
@@ -49,9 +52,9 @@ Vagrant.configure("2") do |config|
         switch.vm.network "private_network", auto_config: false,
             virtualbox__intnet: "S1-S2"
         
-        #Internal network between bmv2 switch2 and host-2.
+        #Internal network between bmv2 switch2 and sw4
         switch.vm.network "private_network", auto_config: false,
-            virtualbox__intnet: "S2-H2"
+            virtualbox__intnet: "S2-S4"
 
         switch.vm.provider "virtualbox" do |v|
             v.customize ["modifyvm", :id, "--nicpromisc3", "allow-all"]
@@ -60,6 +63,60 @@ Vagrant.configure("2") do |config|
         
         switch.vm.provision "ansible" do |ansible| 
             ansible.playbook = "switch-setup/switch-playbook-2.yml"
+        end
+    end
+
+    config.vm.define "bmv2-3" do |switch|
+        switch.vm.box = "leandrocalmeida/bmv2-p4"
+        switch.vm.box_version = "03"
+        switch.vm.hostname = "bmv2-3"
+        
+        #management network (IP - 192.168.56.202)
+        switch.vm.network "private_network", ip: "192.168.56.202",
+            name: "vboxnet0"
+        
+        switch.vm.network "private_network", auto_config: false,
+            virtualbox__intnet: "S1-S3"
+        
+        switch.vm.network "private_network", auto_config: false,
+            virtualbox__intnet: "S3-S4"
+
+        switch.vm.provider "virtualbox" do |v|
+            v.customize ["modifyvm", :id, "--nicpromisc3", "allow-all"]
+            v.customize ["modifyvm", :id, "--nicpromisc4", "allow-all"]
+        end
+        
+        switch.vm.provision "ansible" do |ansible| 
+            ansible.playbook = "switch-setup/switch-playbook-3.yml"
+        end
+    end
+
+    config.vm.define "bmv2-4" do |switch|
+        switch.vm.box = "leandrocalmeida/bmv2-p4"
+        switch.vm.box_version = "03"
+        switch.vm.hostname = "bmv2-4"
+        
+        #management network (IP - 192.168.56.203)
+        switch.vm.network "private_network", ip: "192.168.56.203",
+            name: "vboxnet0"
+        
+        switch.vm.network "private_network", auto_config: false,
+            virtualbox__intnet: "S2-S4"
+        
+        switch.vm.network "private_network", auto_config: false,
+            virtualbox__intnet: "S3-S4"
+
+        switch.vm.network "private_network", auto_config: false,
+            virtualbox__intnet: "S4-H2"
+
+        switch.vm.provider "virtualbox" do |v|
+            v.customize ["modifyvm", :id, "--nicpromisc3", "allow-all"]
+            v.customize ["modifyvm", :id, "--nicpromisc4", "allow-all"]
+            v.customize ["modifyvm", :id, "--nicpromisc5", "allow-all"]
+        end
+        
+        switch.vm.provision "ansible" do |ansible| 
+            ansible.playbook = "switch-setup/switch-playbook-4.yml"
         end
     end
 
@@ -77,7 +134,8 @@ Vagrant.configure("2") do |config|
         h.vm.box = IMAGE_NAME
         h.vm.hostname = "host-2"
         h.vm.network "private_network", ip: "192.168.50.12", mac: "0800271de027",
-            virtualbox__intnet: "S2-H2"
+            virtualbox__intnet: "S4-H2"
+        h.vm.network "private_network", ip: "192.168.56.212", name: "vboxnet0"
         h.vm.provision "ansible" do |ansible| 
             ansible.playbook = "host-setup/host2-playbook.yml"
         end

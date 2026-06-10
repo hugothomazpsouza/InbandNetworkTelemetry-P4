@@ -1,17 +1,18 @@
 ---
 - hosts: all
   tasks:
-  - name: Enable interface
-    command: ifconfig enp0s9 up
-    become: yes
-  - name: Enable interface
-    command: ifconfig enp0s10 up
+  - name: Get data interfaces
+    shell: ls /sys/class/net | grep -E '^enp' | grep -v 'enp0s3\|enp0s8' | sort -V
+    register: data_ifaces
+  - name: Enable data interfaces
+    command: ifconfig {{ item }} up
+    with_items: "{{ data_ifaces.stdout_lines }}"
     become: yes
   - name: Compile p4 code
     command: p4c -b bmv2 /vagrant/code/int.p4 -o /vagrant/code/int.bmv2
     become: yes
   - name: Start Bmv2 Switch
-    shell: simple_switch --device-id 1 --thrift-port 9090 --interface 0@enp0s9 --interface 1@enp0s10  /vagrant/code/int.bmv2/int.json &
+    shell: "simple_switch --device-id 1 --thrift-port 9090 --interface 0@{{ data_ifaces.stdout_lines[0] }} --interface 1@{{ data_ifaces.stdout_lines[1] }} --interface 2@{{ data_ifaces.stdout_lines[2] }} /vagrant/code/int.bmv2/int.json &"
     async: 1000
     poll: 5
     become: yes
