@@ -17,6 +17,8 @@ graph LR
     S1 -- Primary Path --> S2((sw2))
     S1 -- Secondary Path --> S3((sw3))
     
+    H3[host-3<br>192.168.50.13] -.->|Traffic Flood| S2
+    
     S2 --> S4((sw4))
     S3 --> S4
     
@@ -24,6 +26,7 @@ graph LR
     
     style H1 fill:#f9f,stroke:#333,stroke-width:2px
     style H2 fill:#f9f,stroke:#333,stroke-width:2px
+    style H3 fill:#ff9999,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5
     style S1 fill:#bbf,stroke:#333,stroke-width:2px
     style S2 fill:#bbf,stroke:#333,stroke-width:2px
     style S3 fill:#bbf,stroke:#333,stroke-width:2px
@@ -65,14 +68,25 @@ sudo ./send.py 192.168.50.12
 
 In **Terminal 1** (`host-2`), you will start seeing the **InBand Network Telemetry (INT)** metadata being collected from the P4 switches, such as `switchID_t`, `ingress_port`, `egress_port`, `timestamps`, etc.
 
-### Closed-Loop Control (INT-Aware SLA Failover)
-During the test, if the internal switch latency exceeds the threshold configured in `receive.py` (inside the `handle_pkt` function), the traffic is automatically and dynamically redirected. 
-The system alters the forwarding from the **Primary Path** (`host-1 ➔ sw1 ➔ sw2 ➔ sw4 ➔ host-2`) to the **Secondary Path (Failover)** (`host-1 ➔ sw1 ➔ sw3 ➔ sw4 ➔ host-2`).
+**Terminal 3 (The Attacker / Traffic Generator):**
+Access `host-3` and execute the UDP flood attack to create physical queue congestion on the Primary Path (`sw2`):
+```bash
+vagrant ssh host-3
+sudo hping3 -2 --flood -p 80 192.168.50.12
+```
+*Note: Stop the attack using `Ctrl+C` to observe the network's automatic recovery.*
+
+### Closed-Loop Control (INT-Aware SLA Failover & Proactive Recovery)
+During the test, if the internal switch latency (queue buildup) exceeds the physical threshold of 5 ms (5000 us) configured in `receive.py`, the traffic is automatically and dynamically redirected. 
+
+The system implements a state machine with two intelligent behaviors:
+1. **Reactive Fallback:** Alters the forwarding from the **Primary Path** (`host-1 ➔ sw1 ➔ sw2 ➔ sw4 ➔ host-2`) to the **Secondary Path** (`host-1 ➔ sw1 ➔ sw3 ➔ sw4 ➔ host-2`) immediately to escape the congestion.
+2. **Proactive Recovery (IP SLA emulation):** After remaining on the Secondary Path for 20 seconds, the system optimistically reverts the traffic back to the Primary Path to probe its health. If the congestion has cleared, it stays on the Primary Path; if it's still under attack, it instantly falls back to the Secondary Path again.
 
 #### Example Logs:
 
 **1. Threshold Detection (Primary Path via SW2):**
-The first packets pass through switch 2 (`switchID_t= 2`). Once the latency threshold of 400 microseconds is exceeded, the detection is triggered:
+The first packets pass through switch 2 (`switchID_t= 2`). Once the latency threshold of 5 ms (5000 us) is exceeded due to the flood, the detection is triggered:
 ```text
 vagrant@host-2:/vagrant/code$ sudo ./receive.py 
 ###[ Ethernet ]### 
@@ -132,8 +146,8 @@ vagrant@host-2:/vagrant/code$ sudo ./receive.py
 ###[ Padding ]### 
            load      = '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 
---- Current Delay: 0.455 ms ---
-Total delay 455 us exceeded 400 us! Changing path to secondary (SW3)...
+--- Current Delay: 27.775 ms ---
+Total delay 27775 us exceeded 5 ms! Primary path degraded. Changing path to Secondary (SW3)...
 ```
 
 **2. Successful Failover (Secondary Path via SW3):**
@@ -221,3 +235,19 @@ In host-2 terminal you can see metadata that were collected from switches. The m
 - enq_qdepth: the depth of the queue when the packet was first enqueued, in units of number of packets (not the total size of packets).
 - deq_timedelta: the time, in microseconds, that the packet spent in the queue.
 - deq_qdepth: the depth of queue when the packet was dequeued, in units of number of packets (not the total size of packets).
+
+# Useful Commands
+
+## Manual Table Inspection and Manipulation
+If you need to verify or manually alter the P4 switch tables (for example, to revert a failover or force traffic through a specific port), you can use the `simple_switch_CLI` directly from your host.
+
+**View the routing table of sw1 (bmv2-1):**
+```bash
+sudo vagrant ssh bmv2-1 -c 'echo "table_dump MyIngress.ipv4_lpm" | simple_switch_CLI'
+```
+
+**Manually change a routing entry on sw1:**
+*(Example: Changing entry 1 to forward traffic out of port 1 instead of port 2)*
+```bash
+sudo vagrant ssh bmv2-1 -c 'echo "table_modify MyIngress.ipv4_lpm MyIngress.ipv4_forward 1 08:00:27:1d:e0:27 1" | simple_switch_CLI'
+```

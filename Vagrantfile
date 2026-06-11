@@ -55,10 +55,15 @@ Vagrant.configure("2") do |config|
         #Internal network between bmv2 switch2 and sw4
         switch.vm.network "private_network", auto_config: false,
             virtualbox__intnet: "S2-S4"
+        
+        #Internal network between host-3 and sw2
+        switch.vm.network "private_network", auto_config: false,
+            virtualbox__intnet: "H3-S2"
 
         switch.vm.provider "virtualbox" do |v|
             v.customize ["modifyvm", :id, "--nicpromisc3", "allow-all"]
             v.customize ["modifyvm", :id, "--nicpromisc4", "allow-all"]
+            v.customize ["modifyvm", :id, "--nicpromisc5", "allow-all"]
         end
         
         switch.vm.provision "ansible" do |ansible| 
@@ -142,5 +147,15 @@ Vagrant.configure("2") do |config|
     end
 
 
+
+    config.vm.define "host-3" do |h|
+        h.vm.box = IMAGE_NAME
+        h.vm.hostname = "host-3"
+        h.vm.network "private_network", ip: "192.168.50.13", mac: "0800271de028",
+            virtualbox__intnet: "H3-S2"
+        h.vm.provision "ansible" do |ansible| 
+            ansible.playbook = "host-setup/host3-playbook.yml"
+        end
+    end
 
 end

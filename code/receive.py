@@ -5,8 +5,11 @@ import socket
 import random
 import struct
 import os
+import time
 
-path_changed = False
+current_path_port = 1
+last_switch_time = 0
+COOLDOWN_SECONDS = 5
 
 from time import sleep
 from scapy.all import Packet, bind_layers, XByteField, FieldLenField, BitField, ShortField, IntField, PacketListField, Ether, IP, UDP, sendp, get_if_hwaddr, sniff
@@ -34,7 +37,7 @@ class nodeCount(Packet):
                   PacketListField("INT", [], InBandNetworkTelemetry, count_from=lambda pkt:(pkt.count*1))]
 
 def handle_pkt(pkt):
-  global path_changed
+  global current_path_port, last_switch_time
   pkt.show2()
   
   if nodeCount in pkt:
@@ -45,11 +48,30 @@ def handle_pkt(pkt):
       # Temporário: Exibir o delay atual em milissegundos
       print(f"--- Current Delay: {total_delay / 1000.0:.3f} ms ---")
           
-      if total_delay > 400 and not path_changed:
-          print(f"Total delay {total_delay} us exceeded 400 us! Changing path to secondary (SW3)...")
-          os.system("sshpass -p vagrant ssh -o StrictHostKeyChecking=no vagrant@192.168.56.200 'echo \"table_modify MyIngress.ipv4_lpm MyIngress.ipv4_forward 1 08:00:27:1d:e0:27 2\" | simple_switch_CLI'")
-          path_changed = True
-  
+      if total_delay > 5000:
+          current_time = time.time()
+          # Só permite um novo chaveamento se o tempo de resfriamento (cooldown) já passou
+          if (current_time - last_switch_time) > COOLDOWN_SECONDS:
+              if current_path_port == 1:
+                  new_port = 2
+                  print(f"Total delay {total_delay} us exceeded 5 ms! Primary path degraded. Changing path to Secondary (SW3)...")
+              else:
+                  new_port = 1
+                  print(f"Total delay {total_delay} us exceeded 5 ms! Secondary path degraded. Changing back to Primary (SW2)...")
+              
+              os.system(f"sshpass -p vagrant ssh -o StrictHostKeyChecking=no vagrant@192.168.56.200 'echo \"table_modify MyIngress.ipv4_lpm MyIngress.ipv4_forward 1 08:00:27:1d:e0:27 {new_port}\" | simple_switch_CLI'")
+              current_path_port = new_port
+              last_switch_time = current_time
+              
+      # Fallback automático simulando o IP SLA (Retorno para a rota primária)
+      elif current_path_port == 2:
+          current_time = time.time()
+          if (current_time - last_switch_time) > 20: # Após 20 segundos no backup, testa o primário novamente
+              print("Timeout on Secondary path (20s). Optimistically failing back to Primary (SW2) to check health...")
+              new_port = 1
+              os.system(f"sshpass -p vagrant ssh -o StrictHostKeyChecking=no vagrant@192.168.56.200 'echo \"table_modify MyIngress.ipv4_lpm MyIngress.ipv4_forward 1 08:00:27:1d:e0:27 {new_port}\" | simple_switch_CLI'")
+              current_path_port = new_port
+              last_switch_time = current_time
 def main():
 
   iface = 'enp0s8'
