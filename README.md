@@ -211,6 +211,75 @@ The subsequent log shows the traffic passing through switch 3 (`switchID_t= 3`),
            load      = '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 ```
 
+**3. Proactive Recovery (Failback to Primary Path via SW2):**
+After 20 seconds on the backup path, the controller optimistically triggers a failback. The subsequent packets pass through switch 2 (`switchID_t= 2`), confirming the traffic has returned to the primary route to test its health.
+```text
+--- Current Delay: 0.610 ms ---
+Timeout on Secondary path (20s). Optimistically failing back to Primary (SW2) to check health...
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: Modifying entry 1 for lpm match table MyIngress.ipv4_lpm
+RuntimeCmd: 
+
+###[ Ethernet ]### 
+  dst       = 08:00:27:1d:e0:27
+  src       = 08:00:27:1d:e0:27
+  type      = IPv4
+###[ IP ]### 
+     version   = 4
+     ihl       = 5
+     tos       = 0x0
+     len       = 118
+     id        = 1
+     flags     = 
+     frag      = 0
+     ttl       = 61
+     proto     = 253
+     chksum    = 0x9722
+     src       = 192.168.50.11
+     dst       = 192.168.50.12
+     \options   \
+###[ nodeCount ]### 
+        count     = 3
+        \INT       \
+         |###[ InBandNetworkTelemetry ]### 
+         |  switchID_t= 4
+         |  ingress_port= 0
+         |  egress_port= 2
+         |  egress_spec= 0
+         |  ingress_global_timestamp= 2507360175
+         |  egress_global_timestamp= 2507360243
+         |  enq_timestamp= 2507360223
+         |  enq_qdepth= 0
+         |  deq_timedelta= 22
+         |  deq_qdepth= 0
+         |###[ InBandNetworkTelemetry ]### 
+         |  switchID_t= 2
+         |  ingress_port= 0
+         |  egress_port= 1
+         |  egress_spec= 0
+         |  ingress_global_timestamp= 2687205930
+         |  egress_global_timestamp= 2687206111
+         |  enq_timestamp= 2687206061
+         |  enq_qdepth= 0
+         |  deq_timedelta= 56
+         |  deq_qdepth= 0
+         |###[ InBandNetworkTelemetry ]### 
+         |  switchID_t= 1
+         |  ingress_port= 0
+         |  egress_port= 1
+         |  egress_spec= 0
+         |  ingress_global_timestamp= 4755770833
+         |  egress_global_timestamp= 4755771014
+         |  enq_timestamp= 460803673
+         |  enq_qdepth= 0
+         |  deq_timedelta= 49
+         |  deq_qdepth= 0
+###[ Padding ]### 
+           load      = '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+```
+
 ## 4. Stop the Environment
 To power off the virtual machines gracefully:
 ```bash
