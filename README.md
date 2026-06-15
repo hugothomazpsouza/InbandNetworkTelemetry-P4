@@ -68,6 +68,8 @@ sudo ./send.py 192.168.50.12
 
 In **Terminal 1** (`host-2`), you will start seeing the **InBand Network Telemetry (INT)** metadata being collected from the P4 switches, such as `switchID_t`, `ingress_port`, `egress_port`, `timestamps`, etc.
 
+> **Troubleshooting:** If you run `sudo ./receive.py` and `sudo ./send.py 192.168.50.12` but cannot see any logs on `host-2`, please run `sudo vagrant provision` from your host machine to re-deploy the ansible playbook.
+
 **Terminal 3 (The Attacker / Traffic Generator):**
 Access `host-3` and execute the UDP flood attack to create physical queue congestion on the Primary Path (`sw2`):
 ```bash
