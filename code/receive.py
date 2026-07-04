@@ -54,10 +54,10 @@ def handle_pkt(pkt):
           if (current_time - last_switch_time) > COOLDOWN_SECONDS:
               if current_path_port == 1:
                   new_port = 2
-                  print(f"Total delay {total_delay} us exceeded 5 ms! Primary path degraded. Changing path to Secondary (SW3)...")
+                  print(f"Total delay {total_delay / 1000.0:.3f} ms exceeded 5.000 ms! Primary path degraded. Changing path to Secondary (SW3)...")
               else:
                   new_port = 1
-                  print(f"Total delay {total_delay} us exceeded 5 ms! Secondary path degraded. Changing back to Primary (SW2)...")
+                  print(f"Total delay {total_delay / 1000.0:.3f} ms exceeded 5.000 ms! Secondary path degraded. Changing back to Primary (SW2)...")
               
               os.system(f"sshpass -p vagrant ssh -o StrictHostKeyChecking=no vagrant@192.168.56.200 'echo \"table_modify MyIngress.ipv4_lpm MyIngress.ipv4_forward 1 08:00:27:1d:e0:27 {new_port}\" | simple_switch_CLI'")
               current_path_port = new_port
