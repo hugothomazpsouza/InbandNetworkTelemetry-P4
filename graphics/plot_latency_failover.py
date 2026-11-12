@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # 1. Carregar os dados
-df = pd.read_csv('./experiment03/experimento_p4_int_20261112_231846.csv')
+df = pd.read_csv('./experiment01/experimento_p4_int_20261112_204003.csv')
 
 # --- CONVERSÃO DA ESCALA DE TEMPO PARA MILISSEGUNDOS ---
 tempo_inicial = df['timestamp'].min()
