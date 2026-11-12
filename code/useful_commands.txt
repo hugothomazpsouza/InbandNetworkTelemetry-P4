@@ -1,0 +1,58 @@
+Executar o Teste Completo
+
+Com o script atualizado, execute o cenário completo novamente:
+
+    1 - Suba o iperf3 e inicie o receive.py modificado no Host-2.
+
+    sudo vagrant ssh host-2
+
+    for i in {0..9}; do iperf3 -s -p $((5001 + i)) -D; done
+
+    ps aux | grep iperf3
+    netstat -tuln | grep 500
+    ss -tunlp | grep iperf3
+
+    	sudo ./receive_simple_switch_CLI_with_ewma_export_csv.py | tee traffic_log_with_ewma_export_csv.txt
+
+
+    2 - No Host-1, dispare o tráfego.
+
+    sudo ./send.py 192.168.50.12 & sleep 2 && sudo ./urllc_traffic.py
+
+
+    3 - No BMv2-2, execute o script force_congestion.sh para injetar o gargalo aos 15s e remover aos 45s.
+
+    sudo vagrant ssh bmv2-2
+    sudo ./force_congestion.sh
+
+
+- Ver status da interface no switch bmv2-2
+
+tc qdisc show dev enp0s10
+
+tc -s qdisc show dev enp0s10
+
+
+watch -n 1 "tc -s qdisc show dev enp0s10"
+
+
+- Se no Host-1 travou o terminal, abrir outra janela , conectar e encerrar os processos
+
+
+sudo vagrant ssh host-1
+
+sudo pkill -f send.py
+sudo pkill -f urllc_traffic.py
+sudo pkill -f iperf3
+
+ps aux | grep python3
+
+
+tcpdump comando para verificar a internface 
+
+sudo tcpdump -i enp0s10 -n dst 192.168.50.12    
+
+
+- Consultando a tabela de roteamento do próprio Switch
+
+echo "table_dump MyIngress.ipv4_lpm" | simple_switch_CLI

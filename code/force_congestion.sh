@@ -11,7 +11,8 @@ echo "Aguardando 15 segundos..."
 sleep 15
 
 echo "[15s] INJETANDO CONGESTIONAMENTO NO SW2 (Limitando $IFACE para 1Mbit)..."
-sudo tc qdisc add dev $IFACE root tbf rate 1mbit burst 10kb latency 50ms
+sudo tc qdisc add dev $IFACE root tbf rate 100kbit burst 2kb latency 100ms
+#sudo tc qdisc add dev $IFACE root tbf rate 1mbit burst 10kb latency 50ms
 
 echo "Rede degradada. Aguardando 30 segundos..."
 sleep 30
