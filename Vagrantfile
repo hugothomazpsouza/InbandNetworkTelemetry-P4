@@ -131,7 +131,7 @@ Vagrant.configure("2") do |config|
         h.vm.network "private_network", ip: "192.168.50.11", mac: "080027600c50",
             virtualbox__intnet: "H1-S1"
         h.vm.provider "virtualbox" do |v|
-            v.memory = 1024
+            v.memory = 512
     	end
         h.vm.provision "ansible" do |ansible| 
             ansible.playbook = "host-setup/host1-playbook.yml"
@@ -145,7 +145,7 @@ Vagrant.configure("2") do |config|
             virtualbox__intnet: "S4-H2"
         h.vm.network "private_network", ip: "192.168.56.212", name: "vboxnet0"
         h.vm.provider "virtualbox" do |v|
-            v.memory = 1024
+            v.memory = 512
     	end
         h.vm.provision "ansible" do |ansible| 
             ansible.playbook = "host-setup/host2-playbook.yml"
@@ -160,7 +160,7 @@ Vagrant.configure("2") do |config|
         h.vm.network "private_network", ip: "192.168.50.13", mac: "0800271de028",
             virtualbox__intnet: "H3-S2"
         h.vm.provider "virtualbox" do |v|
-            v.memory = 1024
+            v.memory = 512
     	end
         h.vm.provision "ansible" do |ansible| 
             ansible.playbook = "host-setup/host3-playbook.yml"

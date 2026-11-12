@@ -1,15 +1,52 @@
 ---
 - hosts: all
+  become: yes
   tasks:
-  - name: Install python-Scapy and dependencies
-    apt: name={{ item }} update_cache=yes
-    loop: ['python3-scapy', 'net-tools', 'sshpass']
-    become: yes
+    - name: Ensure gnupg and curl are installed for apt-key
+      apt:
+        name: 
+          - gnupg
+          - curl
+        state: present
+        update_cache: yes
 
-  - name: Adjust arp table
-    command: arp -i enp0s8 -s 192.168.50.11 08:00:27:60:0c:50
-    become: yes
+    - name: Fetch OS version ID
+      shell: . /etc/os-release && echo $VERSION_ID
+      register: os_version
 
-  - name: Adjust arp table for host-3
-    command: arp -i enp0s8 -s 192.168.50.13 08:00:27:1d:e0:28
-    become: yes
+    - name: Add P4Lang repository GPG key
+      apt_key:
+        url: "https://download.opensuse.org/repositories/home:/p4lang/xUbuntu_{{ os_version.stdout }}/Release.key"
+        state: present
+
+    - name: Add P4Lang repository
+      apt_repository:
+        repo: "deb https://download.opensuse.org/repositories/home:/p4lang/xUbuntu_{{ os_version.stdout }}/ /"
+        state: present
+        filename: home_p4lang
+
+    - name: Install P4Lang BMv2 and Python dependencies
+      apt:
+        name:
+          - p4lang-bmv2
+          - python3-thrift
+          - python3-scapy
+        state: present
+        update_cache: yes
+
+    - name: Update shared library cache
+      command: ldconfig
+
+    - name: Install additional dependencies (net-tools, sshpass, iperf3)
+      apt:
+        name: 
+          - net-tools
+          - sshpass
+          - iperf3
+        state: present
+
+    - name: Adjust arp table for host-1
+      command: arp -i enp0s8 -s 192.168.50.11 08:00:27:60:0c:50
+
+    - name: Adjust arp table for host-3
+      command: arp -i enp0s8 -s 192.168.50.13 08:00:27:1d:e0:28
