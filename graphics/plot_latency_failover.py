@@ -1,80 +1,97 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
+
+# Estilo global idêntico ao gráfico Cisco IP SLA (coluna dupla IEEE)
+plt.rcParams.update({
+    'font.family': 'sans-serif',
+    'font.size': 11,
+    'axes.labelsize': 13,
+    'xtick.labelsize': 11,
+    'ytick.labelsize': 11,
+    'legend.fontsize': 9.5,
+})
 
 # 1. Carregar os dados
 df = pd.read_csv('./experiment01/experimento_p4_int_20261112_204003.csv')
 
-# --- CONVERSÃO DA ESCALA DE TEMPO PARA MILISSEGUNDOS ---
+# 2. Converter a escala de tempo para milissegundos
 tempo_inicial = df['timestamp'].min()
-# Subtrai o tempo inicial e multiplica por 1000 para converter de segundos para milissegundos
 df['tempo_ms'] = (df['timestamp'] - tempo_inicial) * 1000.0
 
 abaixo_limite = df[df['latencia_ms'] <= 5.0]
 acima_limite = df[df['latencia_ms'] > 5.0]
 
-plt.figure(figsize=(14, 7))
+# 3. Criação do Gráfico (proporção ideal para 1 coluna IEEE)
+fig, ax = plt.subplots(figsize=(6.0, 3.6))
 
-# Gráfico de dispersão e linha EWMA (usando o tempo em ms)
-plt.scatter(abaixo_limite['tempo_ms'], abaixo_limite['latencia_ms'], color='blue', alpha=0.6, s=20, label='Normal Packets (<= 5ms)')
-plt.scatter(acima_limite['tempo_ms'], acima_limite['latencia_ms'], color='orange', alpha=0.8, s=30, label='Degraded Packets (> 5ms)')
-plt.plot(df['tempo_ms'], df['ewma_ms'], color='purple', linestyle='-', linewidth=2.5, label='Smoothed EWMA')
+# Dispersão e curva EWMA
+ax.scatter(
+    abaixo_limite['tempo_ms'], abaixo_limite['latencia_ms'],
+    color='#3b5bdb', s=18, alpha=0.85, label=r'Normal ($\leq 5$ ms)', zorder=2
+)
+ax.scatter(
+    acima_limite['tempo_ms'], acima_limite['latencia_ms'],
+    color='#f08c00', s=26, alpha=1.0, label=r'Degraded ($> 5$ ms)', zorder=3
+)
+ax.plot(
+    df['tempo_ms'], df['ewma_ms'],
+    color='#6741d9', linestyle='-', linewidth=1.8, label='Smoothed EWMA', zorder=4
+)
 
-# Linha do Limiar (Threshold)
-plt.axhline(y=5.0, color='red', linestyle='--', linewidth=2, label='Threshold (5 ms)')
+# Linha horizontal de Threshold (5 ms)
+ax.axhline(y=5.0, color='#e03131', linestyle='--', linewidth=1.6, label='Threshold (5 ms)', zorder=4)
 
-# --- EVENTOS EM MILISSEGUNDOS ---
+# Limite superior do eixo Y definido antes das anotações
+y_max = max(df['latencia_ms'].max() * 1.20, 10.0)
+ax.set_ylim(-0.8, y_max)
+
+# 4. Eventos e janela de zoom em milissegundos
 try:
-    # Procura o momento em que a EWMA excedeu 5ms (agora já em milissegundos)
     t_deteccao = df[df['ewma_ms'] > 5.0]['tempo_ms'].min()
-    
-    # Define os tempos exatos dos eventos
-    t_start = t_deteccao - 50
     t_fail = t_deteccao + 290.6
-    
-    # Marcadores Verticais
-    plt.axvline(x=t_start, color='gray', linestyle=':', linewidth=2, label='Congestion Start (Approx)')
-    plt.axvline(x=t_deteccao, color='orange', linestyle='--', linewidth=2, label='Threshold Detection')
-    plt.axvline(x=t_fail, color='green', linestyle='-', linewidth=2.5, label='Failover / Convergence (+290ms)')
-    
-    # --- ADICIONANDO OS VALORES EM TEXTO SEM SOBREPOSIÇÃO ---
-    # Descobre a altura máxima do gráfico para calcular proporções (ex: 90% da altura, 80%, 70%)
-    y_max = max(df['latencia_ms'].max() * 1.1, 10)
-    
-    # Estilo da caixinha de texto (fundo branco, borda suave)
-    box_style = dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="lightgray", alpha=0.9)
-    
-    # Coloca o texto do Início do Congestionamento mais alto e alinhado à esquerda da linha (ha='right')
-    plt.text(t_start - 30, y_max * 0.90, f'{t_start:.1f} ms', 
-             color='dimgray', fontsize=11, fontweight='bold', ha='right', bbox=box_style)
-             
-    # Coloca o texto da Detecção um pouco mais baixo e alinhado à direita da linha (ha='left')
-    plt.text(t_deteccao + 30, y_max * 0.80, f'{t_deteccao:.1f} ms', 
-             color='darkorange', fontsize=11, fontweight='bold', ha='left', bbox=box_style)
-             
-    # Coloca o texto do Failover mais abaixo e também alinhado à direita
-    plt.text(t_fail + 30, y_max * 0.70, f'{t_fail:.1f} ms', 
-             color='darkgreen', fontsize=11, fontweight='bold', ha='left', bbox=box_style)
-    
-    # --- ZOOM EM MILISSEGUNDOS ---
-    # Zoom de 2000 ms (2s) antes e 4000 ms (4s) depois da detecção
+    downtime_ms = t_fail - t_deteccao
+
+    # Faixa de convergência (failover) + linhas verticais
+    ax.axvspan(
+        t_deteccao, t_fail,
+        color='#e03131', alpha=0.14,
+        label=f'Failover ({downtime_ms:.1f} ms)', zorder=0
+    )
+    ax.axvline(x=t_deteccao, color='#e67700', linestyle='--', linewidth=1.4, zorder=4)
+    ax.axvline(x=t_fail, color='#2b8a3e', linestyle='-', linewidth=1.6, zorder=4)
+
+    # Anotações limpas e próximas às linhas verticais (sem caixas poluindo o visual)
+    ax.text(
+        t_deteccao - 80, y_max * 0.86, f'{t_deteccao:.1f} ms',
+        color='#d9480f', ha='right', va='center', fontweight='bold', fontsize=8.5
+    )
+    ax.text(
+        t_fail + 80, y_max * 0.86, f'{t_fail:.1f} ms',
+        color='#2b8a3e', ha='left', va='center', fontweight='bold', fontsize=8.5
+    )
+
+    # Zoom: 2000 ms antes e 4000 ms depois da detecção
     window_start = max(0, t_deteccao - 2000)
     window_end = t_deteccao + 4000
-    plt.xlim(window_start, window_end)
+    ax.set_xlim(window_start, window_end)
 
 except Exception as e:
     print("Aviso: Falha ao detetar o evento. Erro:", e)
-    
-# Importante: Atualize também a formatação para usar o y_max que calculamos
-plt.ylim(-1, y_max)
 
-# 4. Formatação
-plt.title('Graph 1: Packet Latency and Failover Trigger (P4/ONT)', fontsize=16)
-plt.xlabel('Relative Time (milliseconds)', fontsize=14)
-plt.ylabel('Latency / EWMA (ms)', fontsize=14)
-plt.legend(loc='upper right', fontsize=11)
-plt.grid(True, linestyle='--', alpha=0.5)
-plt.ylim(-1, max(df['latencia_ms'].max() * 1.1, 10))
+# 5. Formatação clean dos eixos (sem título interno)
+ax.xaxis.set_major_locator(MaxNLocator(nbins=5, integer=True))
+ax.set_xlabel('Relative Time (ms)', fontweight='bold')
+ax.set_ylabel('Latency / EWMA (ms)', fontweight='bold')
+
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
+ax.grid(True, linestyle='--', linewidth=0.6, alpha=0.35)
+
+# Legenda no mesmo estilo do gráfico anterior
+ax.legend(loc='upper right', frameon=True, framealpha=0.92, edgecolor='#dee2e6')
 
 plt.tight_layout()
-plt.savefig('graphic_plot_latency_failover.png', dpi=300)
+plt.savefig('graphic_plot_latency_failover.png', dpi=300, bbox_inches='tight')
+plt.savefig('graphic_plot_latency_failover.pdf', bbox_inches='tight')
 plt.show()
