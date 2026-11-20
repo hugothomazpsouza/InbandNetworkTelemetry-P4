@@ -9,7 +9,7 @@ plt.rcParams.update({
     'axes.labelsize': 13,
     'xtick.labelsize': 11,
     'ytick.labelsize': 11,
-    'legend.fontsize': 9.5,
+    'legend.fontsize': 8.5,
 })
 
 # 1. Carregar os dados
@@ -49,6 +49,7 @@ ax.set_ylim(-0.8, y_max)
 # 4. Eventos e janela de zoom em milissegundos
 try:
     t_deteccao = df[df['ewma_ms'] > 5.0]['tempo_ms'].min()
+    t_onset = t_deteccao - 50.0  # Início do congestionamento (50 ms antes da detecção)
     t_fail = t_deteccao + 290.6
     downtime_ms = t_fail - t_deteccao
 
@@ -58,16 +59,27 @@ try:
         color='#e03131', alpha=0.14,
         label=f'Failover ({downtime_ms:.1f} ms)', zorder=0
     )
-    ax.axvline(x=t_deteccao, color='#e67700', linestyle='--', linewidth=1.4, zorder=4)
+    ax.axvline(
+        x=t_onset, color='#495057', linestyle=':', linewidth=1.4,
+        label='Congestion Start', zorder=4
+    )
+    ax.axvline(
+        x=t_deteccao, color='#e67700', linestyle='--', linewidth=1.4,
+        label='Threshold Detection', zorder=4
+    )
     ax.axvline(x=t_fail, color='#2b8a3e', linestyle='-', linewidth=1.6, zorder=4)
 
-    # Anotações limpas e próximas às linhas verticais (sem caixas poluindo o visual)
+    # Anotações limpas sem setas, escalonadas verticalmente e alinhadas à esquerda da linha cinza
     ax.text(
-        t_deteccao - 80, y_max * 0.86, f'{t_deteccao:.1f} ms',
+        t_onset - 90, y_max * 0.68, f'{t_onset:.1f} ms',
+        color='#495057', ha='right', va='center', fontweight='bold', fontsize=8.5
+    )
+    ax.text(
+        t_onset - 90, y_max * 0.88, f'{t_deteccao:.1f} ms',
         color='#d9480f', ha='right', va='center', fontweight='bold', fontsize=8.5
     )
     ax.text(
-        t_fail + 80, y_max * 0.86, f'{t_fail:.1f} ms',
+        t_fail + 90, y_max * 0.88, f'{t_fail:.1f} ms',
         color='#2b8a3e', ha='left', va='center', fontweight='bold', fontsize=8.5
     )
 
@@ -88,8 +100,11 @@ ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)
 ax.grid(True, linestyle='--', linewidth=0.6, alpha=0.35)
 
-# Legenda no mesmo estilo do gráfico anterior
-ax.legend(loc='upper right', frameon=True, framealpha=0.92, edgecolor='#dee2e6')
+# Legenda compacta no canto superior direito
+ax.legend(
+    loc='upper right', frameon=True, framealpha=0.92,
+    edgecolor='#dee2e6', labelspacing=0.28
+)
 
 plt.tight_layout()
 plt.savefig('graphic_plot_latency_failover.png', dpi=300, bbox_inches='tight')
